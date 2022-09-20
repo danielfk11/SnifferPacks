@@ -10,7 +10,7 @@ import sys
 import pyfiglet
 
 try:
-  sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
+  s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
 except socket.error:
   print('[ERROR] Socket nao iniciado.')
   sys.exit(1)
@@ -21,6 +21,13 @@ def get_mac_address(bytesString):
   destination_mac = ':'.join(bytesString).upper()
   return destination_mac
 
+
+
+#formacao do DATA
+DATA_TAB_3 = '/t/t/t'
+
+
+
 #Formatando os Bytes
 def format_lines(prefix, string, size=80):
     size -= len(prefix)
@@ -30,10 +37,14 @@ def format_lines(prefix, string, size=80):
             size -= 1
     return '\n'.join([prefix + line for line in textwrap.wrap(string, size)])
 
+
+
 #desempacotando pacotes ICMP
 def icmppack(data):
     icmp, code, checksum = struct.unpack('! B B H', data[:4])
     return icmp, code, checksum, data[:4]
+
+
 
 #desempacotando seguimentos TCP
 def tcp_seg(data):
@@ -47,28 +58,36 @@ def tcp_seg(data):
     flag_fin = offset_reserved_flags & 1 
     return scr_port, dest_port, sequence, acknowledgement, flag_urg, flag_ack, flag_psh, flag_rst, flag_syn, flag_fin, data[offset:]
 
+
+
 #desempacotando seguimentos UDP
 def udp_seg(data):
     scr_port, dest_port, size = struct.unpack('! H H 2x H', data[:8])
     return  scr_port, dest_port, size, data[:8]
 
 
+
 ascii_banner = pyfiglet.figlet_format("SNIFFER PACKET") # print banner
 print(ascii_banner)
-# iniciando captura dos pacotes
+
+
+#iniciando captura dos pacotes em loop infinito
 while True:
 
-    raw_data, address = sock.recvfrom(65565)
+    raw_data, address = s.recvfrom(65565) #capturando os dados
     destination_mac, src_mac, ethernet_proto = struct.unpack('! 6s 6s H', raw_data[:14])
 
-    destination_mac = get_mac_address(destination_mac)
+
+    destination_mac = get_mac_address(destination_mac) #endereco mac destino
     src_mac = get_mac_address(src_mac)
     ethernet_proto = socket.htons(ethernet_proto)
     data = raw_data[14:]
 
+
     print('\nEthernet frame:')
     print('\tDestination: {}, Source: {}, Ethernet Protocol: {}'.format(destination_mac, src_mac, ethernet_proto))
 
+    #inicio da captura e exibicao dos tipos de pacote
     if ethernet_proto == 8:
         version_header_len = data[0]
         version = version_header_len >> 4
@@ -82,13 +101,15 @@ while True:
         print('\tVersion: {}, Header length: {}, TTL: {}'.format(version,header_len,ttl))
         print('\tProtocol: {}, Source: {}, Target: {}'.format(proto,src,target))
  
+        #ICMP
         if proto == 1:
             icmp, code, checksum, data = icmppack(data)
             print('Pacotes ICMP\t')
             print('Type: {} Code: {} Checksum: {}\t'.format(icmp, code, checksum))
             print('Data: ')
-            #print(format_lines(data))
+            print(format_lines(DATA_TAB_3, data))
 
+        #TCP
         elif proto == 6:
             scr_port, dest_port, sequence, acknowledgement, flag_urg, flag_ack, flag_psh, flag_rst, flag_syn, flag_fin, data = tcp_seg(data)
             print('Pacotes TCP\t')
@@ -97,17 +118,19 @@ while True:
             print('Flags\t')
             print('URG: {} ACK: {} PSH: {} RST: {} SYN: {} FIN: {}'.format(flag_urg, flag_ack, flag_psh, flag_rst, flag_syn, flag_fin))
             print('Data\t')
-            #print(format_lines(data))
+            print(format_lines(DATA_TAB_3, data))
 
+        # UDP
         elif proto == 17:
             scr_port, dest_port, lenght, data = udp_seg(data)
             print('Pacotes UDP\t')
             print('Source Port: {} Destination Port {} Lenght {}'.format(scr_port, dest_port, lenght))
 
+        #other
         else:
             print('Data\n')
-            print(format_lines(data))
+            print(format_lines(DATA_TAB_3, data))
 
     else:
         print('Data\n')
-        print(format_lines(data))       
+        print(format_lines(DATA_TAB_3, data))       

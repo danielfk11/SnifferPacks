@@ -1,5 +1,4 @@
-import socket
-import struct
-import textwrap
-import sys
-import pyfiglet
+socket
+struct
+textwrap
+pyfiglet==0.8
